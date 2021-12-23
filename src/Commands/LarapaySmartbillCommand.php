@@ -1,12 +1,12 @@
 <?php
 
-namespace VendorName\Skeleton\Commands;
+namespace IdeaToCode\LarapaySmartbill\Commands;
 
 use Illuminate\Console\Command;
 
-class SkeletonCommand extends Command
+class LarapaySmartbillCommand extends Command
 {
-    public $signature = 'skeleton';
+    public $signature = 'larapay-smartbill';
 
     public $description = 'My command';
 
