@@ -14,13 +14,6 @@ class EventServiceProvider extends ServiceProvider
         InvoicePaid::class => [
             EmitSmartbillInvoice::class,
         ]
-        // SubscriptionEnded::class => [
-        //     FreeResources::class,
-        //     EndSubscription::class,
-        // ],
-        // SubscriptionExtended::class => [
-        //     ExtendProxySubscription::class,
-        // ]
     ];
 
     /**

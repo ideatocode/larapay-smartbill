@@ -1,6 +1,8 @@
 <?php
 // config for IdeaToCode/LarapaySmartbill
 return [
-    'invoiceSeries' => 'SAMCNS',
-    'companyVatCode' => ''
+    'username' => '',
+    'token' => '',
+    'invoiceSeries' => '',
+    'vatCode' => '',
 ];

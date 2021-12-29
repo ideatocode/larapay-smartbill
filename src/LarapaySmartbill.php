@@ -2,57 +2,150 @@
 
 namespace IdeaToCode\LarapaySmartbill;
 
-use Necenzurat\SmartBill\SmartBill;
+use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Storage;
+use AlexEftimie\LaravelPayments\Models\Invoice;
+use AlexEftimie\LaravelPayments\Models\Payment;
+use Necenzurat\SmartBill\SmartBillCloudRestClient;
+use AlexEftimie\LaravelPayments\Contracts\Billable;
+use AlexEftimie\LaravelPayments\Contracts\InvoiceManager;
 
-class LarapaySmartbill
+class LarapaySmartbill implements InvoiceManager
 {
-    public function emitInvoice()
+    public function downloadRoute()
     {
+        return 'larapay-sb.download';
+    }
+    public function isBillingSetUp()
+    {
+        return optional(auth()->user()->currentTeam)->hasSetUpBilling();
+    }
+    public function emitInvoice(Invoice $invoice, Billable $client)
+    {
+        if (!$client->hasSetUpBilling()) {
+            throw new \Exception("Billing setup not finished");
+        }
+
         $data = [
             'companyVatCode' => config('larapay-smartbill.vatCode'),
             'client'         => [
-                'name'             => "Intelligent IT",
-                'vatCode'         => "RO12345678",
+                'name'             => $client->getBillingName(),
+                'vatCode'         => $client->getBillingCode(),
                 'regCom'         => "",
-                'address'         => "str. Sperantei, nr. 5",
+                'address'         => $client->getBillingAddress(),
                 'isTaxPayer'     => false,
-                'city'             => "Sibiu",
-                'country'         => "Romania",
-                'email'         => "office@intelligent.ro",
+                // 'name'             => "Intelligent IT",
+                // 'vatCode'         => "RO12345678",
+                // 'address'         => "str. Sperantei, nr. 5",
+                // 'city'             => "Sibiu",
+                'country'         => $client->getBillingCountry(),
+                // 'email'         => "office@intelligent.ro",
             ],
-            'issueDate'      => date('Y-m-d'),
+            'language' => 'EN',
+            'currency'             => config('larapay.currency_code'),
+            'issueDate'      => $invoice->created_at->format('Y-m-d'),
             'seriesName'     => config('larapay-smartbill.invoiceSeries'),
             'isDraft'        => false,
-            'dueDate'        => date('Y-m-d', time() + 3600 * 24 * 30),
+            'dueDate'        => $invoice->payment->created_at->format('Y-m-d'),
             'mentions'        => '',
             'observations'   => '',
-            'deliveryDate'   => date('Y-m-d', time() + 3600 * 24 * 10),
             'precision'      => 2,
-            'products'        => [
-                [
-                    'name'                 => "Produs 1",
-                    'code'                 => "ccd1",
-                    'isDiscount'         => false,
-                    'measuringUnitName' => "buc",
-                    'currency'             => "RON",
-                    'quantity'             => 2,
-                    'price'             => 10,
-                    'isTaxIncluded'     => true,
-                    'taxName'             => "Redusa",
-                    'taxPercentage'     => 9,
-                    'isService'         => false,
-                    'saveToDb'          => false,
-                ],
-            ],
+            'products'        => $this->getProductArray($invoice),
+            'payment' => $this->getPaymentArray($invoice->payment),
         ];
+
         try {
-            $smartbill = new SmartBill();
+            $smartbill = new SmartBillCloudRestClient(config('larapay-smartbill.username'), config('larapay-smartbill.token'));
+
             $output = $smartbill->createInvoice($data); //see docs for response
             $invoiceNumber = $output['number'];
             $invoiceSeries = $output['series'];
-            echo $invoiceSeries . $invoiceNumber;
+            $output['pdf'] = $smartbill->PDFInvoice(config('larapay-smartbill.vatCode'), $invoiceSeries, $invoiceNumber);
+            $output['filename'] = $output['series'] . $output['number'] . '.pdf';
+            $this->storePDF($output);
+            $invoice->addOrUpdateMeta('invoice::pdf', [
+                'series' => $output['series'],
+                'number' => $output['number'],
+                'path' => $output['path'],
+            ]);
+
+            return $output;
         } catch (\Exception $ex) {
             echo $ex->getMessage();
         }
+    }
+    public function PDF($series, $number)
+    {
+        $smartbill = new SmartBillCloudRestClient(config('larapay-smartbill.username'), config('larapay-smartbill.token'));
+        $output = [
+            'series' => $series,
+            'number' => $number,
+        ];
+        $output['pdf'] = $smartbill->PDFInvoice(config('larapay-smartbill.vatCode'), $output['series'], $output['number']);
+        $output['filename'] = $output['series'] . $output['number'] . '.pdf';
+        $this->storePDF($output);
+        return $output;
+    }
+
+    protected function getProductArray(Invoice $invoice)
+    {
+        if (!$invoice->subscription) {
+            throw new \Exception("Only Subscription Products implemented");
+        }
+        $price = $invoice->subscription->price;
+        $product = $price->product;
+        // 'isTaxIncluded'     => true,
+        // 'taxName'             => "Redusa",
+        // 'taxPercentage'     => 9,
+
+        // by default we have only one unit
+        $q = 1;
+        $ppu = $invoice->payment->amount / 100;
+
+        // if we have a count in the payload then we have multiple units
+        // and the unit price is total price / unit count
+        if ($price->payload->Count ?? null) {
+            $q = $price->payload->Count;
+            $ppu = $ppu / $q;
+        }
+
+        return [
+            [
+                'name'                 => $product->name,
+                'code'                 => $product->slug,
+                'isDiscount'           => false,
+                'measuringUnitName'    => "buc",
+                'currency'             => config('larapay.currency_code'),
+                'quantity'             => $q,
+                'price'                => $ppu,
+                'isService'            => true,
+                'saveToDb'             => false,
+            ],
+        ];
+    }
+    protected function getPaymentArray(Payment $payment)
+    {
+        switch ($payment->gateway->Name) {
+            case 'stripe':
+                $type = SmartBillCloudRestClient::PaymentType_Card;
+
+            default:
+                $type = SmartBillCloudRestClient::PaymentType_Other;
+                break;
+        }
+        // 'type' => SmartBillCloudRestClient::PaymentType_Other,
+        // 'type' => SmartBillCloudRestClient::PaymentType_OrdinPlata,
+        // 'type' => SmartBillCloudRestClient::PaymentType_Card,
+        return [
+            'type' => $type,
+            'value' => $payment->amount / 100,
+            'isCash' => false,
+        ];
+    }
+    protected function storePDF(&$output)
+    {
+        $name = date('Y_m_') . Str::random(32);
+        $output['path'] = $name . '.pdf';
+        Storage::disk('local')->put($output['path'], $output['pdf']);
     }
 }

@@ -19,7 +19,8 @@
         "php": "^8.0",
         "illuminate/contracts": "^8.73",
         "necenzurat/smartbill": "^1.0",
-        "spatie/laravel-package-tools": "^1.9.2"
+        "spatie/laravel-package-tools": "^1.9.2",
+        "umpirsky/country-list": "^2.0"
     },
     "require-dev": {
         "nunomaduro/collision": "^5.10",
