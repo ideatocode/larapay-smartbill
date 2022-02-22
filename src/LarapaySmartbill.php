@@ -9,6 +9,7 @@ use AlexEftimie\LaravelPayments\Models\Payment;
 use Necenzurat\SmartBill\SmartBillCloudRestClient;
 use AlexEftimie\LaravelPayments\Contracts\Billable;
 use AlexEftimie\LaravelPayments\Contracts\InvoiceManager;
+use Exception;
 
 class LarapaySmartbill implements InvoiceManager
 {
@@ -71,7 +72,7 @@ class LarapaySmartbill implements InvoiceManager
 
             return $output;
         } catch (\Exception $ex) {
-            throw new $ex->getMessage();
+            throw $ex;
         }
     }
     public function PDF($series, $number)
