@@ -23,7 +23,7 @@ class EmitSmartbillInvoice
             $owner = $event->owner;
             $result = LarapaySmartbill::emitInvoice($invoice, $owner);
             unset($result['pdf']);
-            Log::info('result', ['result' => $result]);
+            Log::info('LarapaySmartbill::emitInvoice', ['result' => $result]);
         } catch (Exception $e) {
             Log::error('LarapaySmartbill::emitInvoice', ['error' => $e->getMessage()]);
         }
