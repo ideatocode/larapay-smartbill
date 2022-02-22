@@ -71,7 +71,7 @@ class LarapaySmartbill implements InvoiceManager
 
             return $output;
         } catch (\Exception $ex) {
-            echo $ex->getMessage();
+            throw new $ex->getMessage();
         }
     }
     public function PDF($series, $number)
