@@ -2,14 +2,15 @@
 
 namespace IdeaToCode\LarapaySmartbill;
 
+use Exception;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use AlexEftimie\LaravelPayments\Models\Invoice;
 use AlexEftimie\LaravelPayments\Models\Payment;
 use Necenzurat\SmartBill\SmartBillCloudRestClient;
 use AlexEftimie\LaravelPayments\Contracts\Billable;
 use AlexEftimie\LaravelPayments\Contracts\InvoiceManager;
-use Exception;
 
 class LarapaySmartbill implements InvoiceManager
 {
@@ -72,6 +73,7 @@ class LarapaySmartbill implements InvoiceManager
 
             return $output;
         } catch (\Exception $ex) {
+            Log::info('LarapaySmartbill::emitInvoice', ['exception' => $ex]);
             throw $ex;
         }
     }
