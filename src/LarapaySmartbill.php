@@ -2,7 +2,9 @@
 
 namespace IdeaToCode\LarapaySmartbill;
 
+use Exception;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use AlexEftimie\LaravelPayments\Models\Invoice;
 use AlexEftimie\LaravelPayments\Models\Payment;
@@ -71,7 +73,8 @@ class LarapaySmartbill implements InvoiceManager
 
             return $output;
         } catch (\Exception $ex) {
-            throw new $ex->getMessage();
+            Log::info('LarapaySmartbill::emitInvoice', ['exception' => $ex]);
+            throw new Exception($ex->getMessage());
         }
     }
     public function PDF($series, $number)
